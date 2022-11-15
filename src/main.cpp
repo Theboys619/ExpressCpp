@@ -6,6 +6,8 @@ int main() {
   LG::LandingGear app = LG::LandingGear();
   const int port = 64432;
 
+  app.use("public", LG::getStatic("public"));
+
   app.get("/", [](LG::LGRequest& req, LG::LGResponse& res) {
     std::cout << "[/]: HIT" << std::endl;
     res.send("Eureka!");
@@ -13,6 +15,7 @@ int main() {
 
   app.get("/home/:epic", [](LG::LGRequest& req, LG::LGResponse& res) {
     std::cout << "[/home/:epic]: " << "param: " << req.params["epic"] << std::endl;
+
     res.send(req.params["epic"] + "!");
   });
 

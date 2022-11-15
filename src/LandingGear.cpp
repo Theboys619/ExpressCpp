@@ -461,27 +461,29 @@ namespace LandingGear {
     };
 
     std::function<void(LGMiddleware, LGRequest*)> checkMiddle = [&res, &next](LGMiddleware middle, LGRequest* req) {
+      std::string path = req->path;
+      std::string mpath = middle.path;
+      trim(path);
+      trim(mpath);
+
+      if (startsWith(path, "/")) {
+        path = path.substr(1); // /home/nice
+      }
+      if (startsWith(mpath, "/")) {
+        mpath = mpath.substr(1); // /home/:monkey
+      }
+      
       if (middle.method == "USE") {
-        if (middle.path.size() > 0) {
-          if (startsWith(req->path, middle.path)) {
+        if (mpath.size() > 0) {
+          if (startsWith(path, mpath)) {
             middle.call(*req, res, next);
+          } else {
+            next();
           }
         } else {
           middle.call(*req, res, next);
         }
       } else {
-        std::string path = req->path;
-        std::string mpath = middle.path;
-        trim(path);
-        trim(mpath);
-
-        if (startsWith(path, "/")) {
-          path = path.substr(1); // /home/nice
-        }
-        if (startsWith(mpath, "/")) {
-          mpath = mpath.substr(1); // /home/:monkey
-        }
-
         std::vector<std::string> reqPaths = split(path, "/"); // [home, nice]
         std::vector<std::string> methodPaths = split(mpath, "/"); // [home, :monkey]
 
@@ -610,6 +612,21 @@ namespace LandingGear {
   LGMiddleware::LGMiddleware(LGMiddlewareCB cb): cb(cb) {};
   LGMiddleware::LGMiddleware(LGMiddlewareCB cb, std::string method): cb(cb), method(method) {};
 
+  LGMiddleware::LGMiddleware(std::string path, const char* method, LGMiddlewareCB cb)
+    : path(path),
+      method(method),
+      cb(cb) {};
+  LGMiddleware::LGMiddleware(std::string path, const char* method, ReqCallback cb)
+    : path(path),
+      method(method) {
+    this->cb = [&](LGRequest& req, LGResponse& res, NextFunction next) {
+      cb(req, res);
+      if (!res.headersSent) {
+        next();
+      }
+    };
+  }
+
   // Calls the callback (cb)
   void LGMiddleware::call(LGRequest& req, LGResponse& res, std::function<void(void)> next) {
     cb(req, res, next);
@@ -661,6 +678,13 @@ namespace LandingGear {
     middleware.push_back(middlew);
   }
 
+  void LandingGear::use(std::string path, LGMiddlewareCB cb) {
+    LGMiddleware middlew = LGMiddleware(path, "USE");
+    middlew.cb = cb;
+
+    middleware.push_back(middlew);
+  }
+
   int LandingGear::listen(int port, ListenCB cb) {
     cb();
 
@@ -704,5 +728,48 @@ namespace LandingGear {
     mainThread.join();
 
     return 0;
+  }
+
+  LGMiddlewareCB getStatic(std::string folderpath) {
+    return [folderpath](LGRequest& req, LGResponse& res, NextFunction next) {
+      std::vector<std::string> paths = split(req.path, folderpath);
+      if (paths.size() <= 0) {
+        next();
+        return;
+      }
+      
+      std::string realPath = paths.size() > 1 ? paths[1] : paths[0];
+
+      if (startsWith(realPath, "/")) {
+        realPath = realPath.substr(1);
+      }
+
+      std::string folderPath = folderpath;
+
+      if (startsWith(folderPath, "/")) {
+        folderPath = folderPath.substr(1);
+      }
+
+      if (endsWith(folderPath, "/")) {
+        folderPath = folderPath.substr(0, folderPath.size() - 1);
+      }
+
+      std::ifstream File(folderPath + "/" + realPath);
+
+      if (!File.good() || File.eof() || File.bad() || File.fail()) {
+        File.close();
+        next();
+        return;
+      }
+      
+      std::string line;
+      std::string data = "";
+      while (std::getline(File, line)) {
+        data += line;
+      }
+
+      res.send(data);
+      File.close();
+    };
   }
 };

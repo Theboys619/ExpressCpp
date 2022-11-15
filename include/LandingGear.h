@@ -28,6 +28,7 @@
 #include <vector>
 #include <cctype>
 #include <thread>
+#include <fstream>
 
 #include "EventListener.h"
 
@@ -143,6 +144,8 @@ namespace LandingGear {
     LGMiddleware();
     LGMiddleware(std::string path);
     LGMiddleware(std::string path, const char* method);
+    LGMiddleware(std::string path, const char* method, LGMiddlewareCB cb);
+    LGMiddleware(std::string path, const char* method, ReqCallback cb);
     LGMiddleware(std::string path, bool isWildcard);
     LGMiddleware(LGMiddlewareCB cb);
     LGMiddleware(LGMiddlewareCB cb, std::string method);
@@ -172,9 +175,13 @@ namespace LandingGear {
     void get(std::string path, LGMiddlewareCB middle, LGMiddlewareCB cb);
     void get(std::string path, LGMiddlewareCB middle, ReqCallback cb);
 
+    void use(std::string path, LGMiddlewareCB cb);
+
     int listen(int port);
     int listen(int port, ListenCB cb);
   };
+
+  LGMiddlewareCB getStatic(std::string folderpath);
 }; // namespace LandingGear
 
 #endif
